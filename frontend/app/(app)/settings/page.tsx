@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { Copy, Share2 } from "lucide-react";
 import { authedFetch } from "@/lib/api";
 import { VoiceCalibration } from "@/components/voice-calibration";
 
@@ -12,10 +13,13 @@ export default function SettingsPage() {
   const [voiceProfile, setVoiceProfile] = useState<Record<string, any> | null>(
     null
   );
+  const [referralCode, setReferralCode] = useState<string | null>(null);
 
   useEffect(() => {
     const userId = localStorage.getItem("chief_user_id");
     if (!userId) return;
+
+    setReferralCode(localStorage.getItem("chief_referral_code"));
 
     authedFetch(`/api/settings?user_id=${userId}`)
       .then((res) => res.json())
@@ -118,6 +122,54 @@ export default function SettingsPage() {
           onToneStrictnessChange={setToneStrictness}
           onProfileUpdate={setVoiceProfile}
         />
+
+        {/* ── Referral ── */}
+        {referralCode && (
+          <section className="space-y-4">
+            <p className="text-[11px] font-medium uppercase tracking-widest text-chief-text-muted">
+              Referral
+            </p>
+            <div className="rounded-chief border border-chief-border bg-chief-surface p-4">
+              <p className="text-sm font-medium text-chief-text">
+                Your referral code
+              </p>
+              <p className="mt-0.5 text-xs text-chief-text-muted">
+                Share with other executives. Each referral gets their own code.
+              </p>
+              <div className="mt-4 flex items-center gap-3">
+                <div className="flex-1 rounded-chief border border-chief-border bg-chief-bg px-4 py-2.5 font-mono text-lg font-bold tracking-[0.2em] text-chief-text">
+                  {referralCode}
+                </div>
+                <button
+                  onClick={() => {
+                    const link = `${window.location.origin}/login?ref=${referralCode}`;
+                    navigator.clipboard.writeText(link);
+                    toast.success("Link copied");
+                  }}
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-chief border border-chief-border bg-chief-bg text-chief-text-secondary transition-colors hover:text-chief-text"
+                  aria-label="Copy referral link"
+                >
+                  <Copy className="h-4 w-4" />
+                </button>
+                {"share" in navigator && (
+                  <button
+                    onClick={() => {
+                      navigator.share({
+                        title: "CHIEF — Executive Email Proxy",
+                        text: "I've been using CHIEF to handle my inbox. Use my referral code to get access:",
+                        url: `${window.location.origin}/login?ref=${referralCode}`,
+                      }).catch(() => {});
+                    }}
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-chief border border-chief-border bg-chief-bg text-chief-text-secondary transition-colors hover:text-chief-text"
+                    aria-label="Share referral link"
+                  >
+                    <Share2 className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* ── Save ── */}
         <button

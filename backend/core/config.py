@@ -16,6 +16,11 @@ SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET", "")
 JWT_SECRET = os.getenv("JWT_SECRET", SUPABASE_JWT_SECRET or "chief-dev-secret-change-in-prod")
 
 # ---------------------------------------------------------------------------
+# Admin / Referrals
+# ---------------------------------------------------------------------------
+ADMIN_SECRET = os.getenv("ADMIN_SECRET", "chief-admin-dev")
+
+# ---------------------------------------------------------------------------
 # Pinecone
 # ---------------------------------------------------------------------------
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY", "")

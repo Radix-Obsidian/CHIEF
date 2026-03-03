@@ -16,6 +16,7 @@ class TokenResponse(BaseModel):
     access_token: str
     user_id: str
     expires_at: datetime
+    referral_code: str | None = None
 
 
 # ---------------------------------------------------------------------------

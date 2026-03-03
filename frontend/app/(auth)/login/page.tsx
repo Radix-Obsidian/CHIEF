@@ -1,16 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
+import { Suspense } from "react";
 
-export default function LoginPage() {
+function LoginContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const ref = searchParams.get("ref");
   const [demoStatus, setDemoStatus] = useState<"idle" | "loading" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
 
   const handleGoogleLogin = () => {
-    window.location.href = "/api/auth/google";
+    window.location.href = ref
+      ? `/api/auth/google?ref=${encodeURIComponent(ref)}`
+      : "/api/auth/google";
   };
 
   const handleTryDemo = async () => {
@@ -40,6 +45,16 @@ export default function LoginPage() {
             Executive Email Proxy
           </p>
         </div>
+
+        {/* Referral banner */}
+        {ref && (
+          <div className="flex items-center gap-2 rounded-chief border border-chief-accent/30 bg-chief-accent/5 px-4 py-3">
+            <div className="h-2 w-2 shrink-0 rounded-full bg-chief-accent" />
+            <p className="text-[13px] text-chief-text-secondary">
+              You&apos;ve been referred by a trusted contact
+            </p>
+          </div>
+        )}
 
         {/* Auth buttons */}
         <div className="space-y-4">
@@ -116,5 +131,19 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen flex-col items-center justify-center">
+          <div className="chief-pulse-bar w-32" />
+        </div>
+      }
+    >
+      <LoginContent />
+    </Suspense>
   );
 }
