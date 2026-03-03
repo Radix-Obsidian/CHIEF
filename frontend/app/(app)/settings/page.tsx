@@ -174,7 +174,7 @@ export default function SettingsPage() {
         {/* ── Save ── */}
         <button
           onClick={saveSettings}
-          className="w-full rounded-chief bg-chief-accent py-3 text-sm font-medium text-white transition hover:brightness-110"
+          className="w-full rounded-chief bg-chief-accent py-3 text-sm font-medium text-chief-bg transition hover:brightness-110"
         >
           Save
         </button>

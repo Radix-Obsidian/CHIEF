@@ -314,7 +314,7 @@ export function VoiceCalibration({
         type="button"
         onClick={handleRecalibrate}
         disabled={calibrating}
-        className="w-full rounded-chief bg-chief-accent py-3 text-sm font-medium text-white transition hover:brightness-110 disabled:opacity-50"
+        className="w-full rounded-chief bg-chief-accent py-3 text-sm font-medium text-chief-bg transition hover:brightness-110 disabled:opacity-50"
       >
         {calibrating ? (
           <span className="flex items-center justify-center gap-2">

@@ -113,7 +113,7 @@ export default function DraftDetailPage() {
         <button
           onClick={handleApprove}
           disabled={sending}
-          className="flex flex-1 items-center justify-center gap-2 rounded-chief bg-chief-accent py-3 text-hig-caption font-medium text-white transition hover:brightness-110 disabled:opacity-50"
+          className="flex flex-1 items-center justify-center gap-2 rounded-chief bg-chief-accent py-3 text-hig-caption font-medium text-chief-bg transition hover:brightness-110 disabled:opacity-50"
         >
           {sending ? (
             <div className="chief-pulse-bar w-16" />
