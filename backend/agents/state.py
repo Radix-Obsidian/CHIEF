@@ -1,10 +1,11 @@
 """EmailState — LangGraph state definition for the CHIEF pipeline.
 
 The state flows through 4 nodes:
-  Gatekeeper → Oracle → Scribe → [INTERRUPT] → Operator
+  Gatekeeper → Oracle → Scribe → Operator
 
-Human-in-the-loop fields (approved, user_edits) are populated when
-the graph resumes after the static interrupt_after=["scribe"].
+Scribe uses dynamic interrupt() to pause for human approval.
+Human decision (approved, user_edits) is returned by interrupt()
+and written into state by the Scribe node itself.
 """
 
 import operator
@@ -41,7 +42,7 @@ class EmailState(TypedDict):
     action_taken: str  # "sent" | "archived" | "edited_and_sent"
     notification_sent: bool
 
-    # ---- Human-in-the-loop (populated on resume) ----
+    # ---- Human-in-the-loop (set by Scribe after interrupt() resumes) ----
     approved: Optional[bool]
     user_edits: Optional[str]  # If user edited the draft before approving
 

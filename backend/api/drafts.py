@@ -1,4 +1,4 @@
-"""Draft management endpoints with LangGraph interrupt/resume.
+"""Draft management endpoints with LangGraph dynamic interrupt/resume.
 
 Endpoints:
   GET  /api/drafts              → List pending drafts
@@ -9,25 +9,21 @@ Endpoints:
 
 import logging
 
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import Depends, FastAPI, HTTPException
 
 from api.models import ApproveRequest, DraftActionResponse
+from core.auth import get_current_user_id
+from core.cors import add_cors
 from core.supabase_client import get_supabase
 
 log = logging.getLogger("chief.api.drafts")
 
 app = FastAPI(title="CHIEF Drafts")
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+add_cors(app)
 
 
 @app.get("/api/drafts")
-async def list_drafts(user_id: str, status: str = "pending"):
+async def list_drafts(user_id: str = Depends(get_current_user_id), status: str = "pending"):
     """List drafts filtered by status."""
     supabase = get_supabase()
 
@@ -39,7 +35,7 @@ async def list_drafts(user_id: str, status: str = "pending"):
 
 
 @app.get("/api/drafts/{draft_id}")
-async def get_draft(draft_id: str, user_id: str):
+async def get_draft(draft_id: str, user_id: str = Depends(get_current_user_id)):
     """Get a single draft with full body."""
     supabase = get_supabase()
 
@@ -54,7 +50,7 @@ async def get_draft(draft_id: str, user_id: str):
 
 
 @app.put("/api/drafts/{draft_id}")
-async def edit_draft(draft_id: str, user_id: str, body: str):
+async def edit_draft(draft_id: str, body: str, user_id: str = Depends(get_current_user_id)):
     """Edit a draft's body text."""
     supabase = get_supabase()
 
@@ -70,16 +66,24 @@ async def edit_draft(draft_id: str, user_id: str, body: str):
 
 
 @app.post("/api/drafts/{thread_id}/approve")
-async def approve_draft(thread_id: str, req: ApproveRequest):
+async def approve_draft(thread_id: str, req: ApproveRequest, user_id: str = Depends(get_current_user_id)):
     """Approve or reject a draft by resuming the paused LangGraph.
 
-    The graph is paused after the Scribe node (interrupt_after=["scribe"]).
+    The graph is paused inside the Scribe node via dynamic interrupt().
     This endpoint resumes it with the human decision via Command(resume=...).
-    The Operator node then sends or archives the email.
+    Scribe writes the decision into state, then Operator sends or archives.
     """
     try:
         from langgraph.types import Command
         from agents.graph import get_chief_graph
+
+        # Verify the thread belongs to the authenticated user
+        supabase = get_supabase()
+        ownership = supabase.table("emails").select("id").eq(
+            "thread_id", thread_id
+        ).eq("user_id", user_id).limit(1).execute()
+        if not ownership.data:
+            raise HTTPException(status_code=403, detail="Thread does not belong to you")
 
         graph = get_chief_graph()
         config = {"configurable": {"thread_id": thread_id}}

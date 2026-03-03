@@ -12,6 +12,8 @@ First node in the pipeline. Responsibilities:
 import json
 import logging
 
+from langgraph.config import get_stream_writer
+
 from agents.state import EmailState
 from agents.prompts import IMPORTANCE_SCORING_PROMPT
 from core.llm import get_llm
@@ -22,8 +24,9 @@ from services.rag_service import upsert_email, get_sender_context
 log = logging.getLogger("chief.gatekeeper")
 
 
-async def gatekeeper_node(state: EmailState) -> dict:
+async def gatekeeper_node(state: EmailState, *, config) -> dict:
     """PII sanitize + importance score + Pinecone upsert."""
+    writer = get_stream_writer(config)
     user_id = state["user_id"]
     email_id = state["email_id"]
     raw = state["raw_email"]
@@ -31,6 +34,7 @@ async def gatekeeper_node(state: EmailState) -> dict:
     log.info("Gatekeeper processing email %s for user %s", email_id, user_id)
 
     # 1. PII sanitization
+    writer({"node": "gatekeeper", "status": "sanitizing_pii"})
     body_result = sanitize(raw.get("body", ""))
 
     # 2. Get sender context from Pinecone (past interactions)
@@ -41,6 +45,7 @@ async def gatekeeper_node(state: EmailState) -> dict:
     sender_context_str = json.dumps(sender_ctx, indent=2) if sender_ctx else "No prior interactions found."
 
     # 3. Importance scoring via operational LLM
+    writer({"node": "gatekeeper", "status": "scoring_importance"})
     llm = get_llm(tier="operational")
     prompt = IMPORTANCE_SCORING_PROMPT.format(
         sender_context=sender_context_str,
@@ -89,6 +94,13 @@ async def gatekeeper_node(state: EmailState) -> dict:
 
     if should_draft:
         supabase.table("emails").update({"has_draft": True}).eq("id", email_id).execute()
+
+    writer({
+        "node": "gatekeeper",
+        "status": "complete",
+        "importance_score": importance_score,
+        "should_draft": should_draft,
+    })
 
     log.info("Email %s scored %d (threshold=%d, should_draft=%s)",
              email_id, importance_score, threshold, should_draft)

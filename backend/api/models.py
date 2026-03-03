@@ -70,7 +70,7 @@ class DraftResponse(BaseModel):
 
 class ApproveRequest(BaseModel):
     approved: bool
-    edits: str | None = None
+    edits: str | None = Field(default=None, max_length=10000)
 
 
 class DraftActionResponse(BaseModel):

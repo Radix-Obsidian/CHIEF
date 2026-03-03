@@ -10,6 +10,8 @@ Second node in the pipeline. Responsibilities:
 import json
 import logging
 
+from langgraph.config import get_stream_writer
+
 from agents.state import EmailState
 from agents.prompts import CONTEXT_SYNTHESIS_PROMPT
 from core.llm import get_llm
@@ -18,8 +20,9 @@ from services.rag_service import query_context
 log = logging.getLogger("chief.oracle")
 
 
-async def oracle_node(state: EmailState) -> dict:
+async def oracle_node(state: EmailState, *, config) -> dict:
     """RAG context retrieval + sender analysis."""
+    writer = get_stream_writer(config)
     user_id = state["user_id"]
     sanitized_body = state.get("sanitized_body", "")
     raw = state["raw_email"]
@@ -27,6 +30,7 @@ async def oracle_node(state: EmailState) -> dict:
     log.info("Oracle retrieving context for email %s", state["email_id"])
 
     # 1. Query Pinecone for relevant past emails
+    writer({"node": "oracle", "status": "querying_context"})
     rag_results = await query_context(
         user_id=user_id,
         query_text=sanitized_body[:1000],
@@ -45,6 +49,7 @@ async def oracle_node(state: EmailState) -> dict:
     rag_str = "\n\n".join(rag_formatted) if rag_formatted else "No prior interactions found."
 
     # 2. Synthesize context via operational LLM
+    writer({"node": "oracle", "status": "synthesizing_context", "rag_docs": len(rag_results)})
     llm = get_llm(tier="operational")
     prompt = CONTEXT_SYNTHESIS_PROMPT.format(
         rag_results=rag_str,
@@ -67,6 +72,13 @@ async def oracle_node(state: EmailState) -> dict:
             "total_interactions": len(rag_results),
         }
         suggested_tone = "professional"
+
+    writer({
+        "node": "oracle",
+        "status": "complete",
+        "suggested_tone": suggested_tone,
+        "rag_docs": len(rag_results),
+    })
 
     log.info("Oracle: %d context docs, tone=%s, relationship=%s",
              len(rag_results), suggested_tone, sender_history.get("relationship"))

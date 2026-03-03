@@ -6,31 +6,29 @@ Endpoints:
   POST /api/auth/refresh  → Refresh access token
 """
 
+import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import RedirectResponse
 from google_auth_oauthlib.flow import Flow
 
 from api.models import OAuthCallbackRequest, TokenResponse
+from core.auth import get_current_user_id
+from core.cors import add_cors
 from core.config import (
     GOOGLE_CLIENT_ID,
     GOOGLE_CLIENT_SECRET,
     GOOGLE_REDIRECT_URI,
 )
 from core.supabase_client import get_supabase
+from services.voice_profiler import build_profile
 
 log = logging.getLogger("chief.auth")
 
 app = FastAPI(title="CHIEF Auth")
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+add_cors(app)
 
 SCOPES = [
     "https://www.googleapis.com/auth/gmail.modify",
@@ -113,6 +111,13 @@ async def google_callback(req: OAuthCallbackRequest):
     # Store tokens in Vault
     _store_tokens(supabase, user_id, credentials)
 
+    # Build voice profile in background (non-blocking)
+    asyncio.create_task(build_profile(
+        user_id=user_id,
+        access_token=credentials.token,
+        refresh_token=credentials.refresh_token,
+    ))
+
     log.info("OAuth complete for user %s (%s)", user_id, email)
 
     return TokenResponse(
@@ -123,7 +128,7 @@ async def google_callback(req: OAuthCallbackRequest):
 
 
 @app.post("/api/auth/refresh")
-async def refresh_token(user_id: str):
+async def refresh_token(user_id: str = Depends(get_current_user_id)):
     """Refresh the user's Gmail access token."""
     supabase = get_supabase()
 

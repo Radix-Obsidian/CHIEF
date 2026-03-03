@@ -11,7 +11,6 @@ process starts quickly and the /health probe responds immediately.
 
 import importlib
 import logging
-import os
 
 logging.basicConfig(
     level=logging.INFO,
@@ -34,33 +33,8 @@ def _load_app(module_path: str) -> object:
         log.info("Lazy-loading %s …", module_path)
         mod = importlib.import_module(module_path)
         sub = getattr(mod, "app")
-        _patch_cors(sub)
         _app_cache[module_path] = sub
     return _app_cache[module_path]
-
-
-# ---------------------------------------------------------------------------
-# CORS patch (applied once per sub-app on first load)
-# ---------------------------------------------------------------------------
-_FRONTEND_URL = os.getenv("FRONTEND_URL", "")
-_RAILWAY_URL = os.getenv("RAILWAY_PUBLIC_DOMAIN", "")
-
-_extra_origins: list[str] = []
-if _FRONTEND_URL:
-    _extra_origins.append(_FRONTEND_URL.rstrip("/"))
-if _RAILWAY_URL:
-    _extra_origins.append(f"https://{_RAILWAY_URL}")
-
-
-def _patch_cors(sub_app):
-    """Append production origins to an already-configured CORSMiddleware."""
-    if not _extra_origins:
-        return
-    for mw in getattr(sub_app, "user_middleware", []):
-        if getattr(mw.cls, "__name__", "") == "CORSMiddleware":
-            existing = list(mw.kwargs.get("allow_origins", []))
-            mw.kwargs["allow_origins"] = existing + _extra_origins
-            break
 
 
 # ---------------------------------------------------------------------------

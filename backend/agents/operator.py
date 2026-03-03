@@ -1,10 +1,11 @@
 """Operator node — Execute human decision (send/archive).
 
-Fourth and final node. Runs ONLY after human resumes the graph
-via Command(resume={approved, user_edits}).
+Fourth and final node. Reads human decision from state fields
+(approved, user_edits) that Scribe populated after its dynamic
+interrupt() resumed.
 
 Responsibilities:
-1. Read human decision from resumed state
+1. Read human decision from state
 2. If approved: send email via Gmail API
 3. If rejected: archive email via Gmail labels
 4. Store draft record in Supabase
@@ -14,6 +15,8 @@ Responsibilities:
 import logging
 from datetime import datetime, timezone
 
+from langgraph.config import get_stream_writer
+
 from agents.state import EmailState
 from core.gmail_client import send_email, modify_labels
 from core.supabase_client import get_supabase
@@ -21,8 +24,9 @@ from core.supabase_client import get_supabase
 log = logging.getLogger("chief.operator")
 
 
-async def operator_node(state: EmailState) -> dict:
+async def operator_node(state: EmailState, *, config) -> dict:
     """Execute the human decision — send or archive."""
+    writer = get_stream_writer(config)
     user_id = state["user_id"]
     email_id = state["email_id"]
     raw = state["raw_email"]
@@ -40,6 +44,7 @@ async def operator_node(state: EmailState) -> dict:
     tokens = await _get_tokens(supabase, user_id)
 
     if approved:
+        writer({"node": "operator", "status": "sending_email"})
         # Determine which body to send
         final_body = user_edits if user_edits else state.get("draft_body", "")
         final_subject = state.get("draft_subject", f"Re: {raw.get('subject', '')}")
@@ -82,6 +87,7 @@ async def operator_node(state: EmailState) -> dict:
         draft_id = draft_result.data[0]["id"] if draft_result.data else None
 
     else:
+        writer({"node": "operator", "status": "archiving_email"})
         # Rejected — archive the email
         action = "archived"
 
@@ -117,12 +123,14 @@ async def operator_node(state: EmailState) -> dict:
         "has_draft": False,
     }).eq("id", email_id).execute()
 
+    writer({"node": "operator", "status": "complete", "action": action})
+
     log.info("Operator complete: action=%s, draft_id=%s", action, draft_id)
 
     return {
         "draft_id": draft_id,
         "action_taken": action,
-        "notification_sent": False,  # TODO: push notification in Week 4
+        "notification_sent": False,
     }
 
 

@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { SwipeFeed } from "@/components/swipe-feed";
+import { useRealtimeDrafts } from "@/hooks/use-realtime-drafts";
 import { Inbox } from "lucide-react";
 
 interface PendingDraft {
@@ -21,17 +22,18 @@ interface PendingDraft {
 export default function InboxPage() {
   const [drafts, setDrafts] = useState<PendingDraft[]>([]);
   const [loading, setLoading] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
 
+  // Initial fetch — still needed to hydrate existing pending drafts
   useEffect(() => {
-    fetchPendingDrafts();
+    const id = localStorage.getItem("chief_user_id");
+    setUserId(id);
+    if (id) fetchPendingDrafts(id);
   }, []);
 
-  async function fetchPendingDrafts() {
+  async function fetchPendingDrafts(uid: string) {
     try {
-      const userId = localStorage.getItem("chief_user_id");
-      if (!userId) return;
-
-      const res = await fetch(`/api/inbox/pending?user_id=${userId}`);
+      const res = await fetch(`/api/inbox/pending?user_id=${uid}`);
       const data = await res.json();
       setDrafts(data);
     } catch (err) {
@@ -41,18 +43,41 @@ export default function InboxPage() {
     }
   }
 
+  // Realtime: new draft inserted by Operator → add card to feed
+  const handleRealtimeInsert = useCallback((draft: any) => {
+    if (draft.status !== "pending") return;
+
+    // Refetch pending drafts to get full shape (with original_email context)
+    if (userId) fetchPendingDrafts(userId);
+  }, [userId]);
+
+  // Realtime: draft status updated (sent/rejected) → remove card
+  const handleRealtimeUpdate = useCallback((draft: any) => {
+    if (draft.status !== "pending") {
+      setDrafts((prev) => prev.filter((d) => d.thread_id !== draft.thread_id));
+    }
+  }, []);
+
+  useRealtimeDrafts({
+    userId,
+    onInsert: handleRealtimeInsert,
+    onUpdate: handleRealtimeUpdate,
+  });
+
   async function handleSwipe(threadId: string, approved: boolean, edits?: string) {
+    // Optimistic removal
+    setDrafts((prev) => prev.filter((d) => d.thread_id !== threadId));
+
     try {
       await fetch(`/api/drafts/${threadId}/approve`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ approved, edits }),
       });
-
-      // Remove the card from the feed
-      setDrafts((prev) => prev.filter((d) => d.thread_id !== threadId));
     } catch (err) {
       console.error("Swipe action failed:", err);
+      // Refetch on error to restore the card
+      if (userId) fetchPendingDrafts(userId);
     }
   }
 

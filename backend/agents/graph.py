@@ -1,10 +1,11 @@
-"""LangGraph 4-node pipeline with static interrupt for human-in-the-loop.
+"""LangGraph 4-node pipeline with dynamic interrupt for human-in-the-loop.
 
 Graph flow:
-  START → Gatekeeper → [conditional] → Oracle → Scribe → [INTERRUPT] → Operator → END
-                          └── score < threshold ──────────────────────────────→ END
+  START → Gatekeeper → [conditional] → Oracle → Scribe → Operator → END
+                          └── score < threshold ─────────────────────→ END
 
-The graph pauses after Scribe (interrupt_after=["scribe"]).
+Scribe uses dynamic interrupt() to pause for human approval.  High-confidence
+drafts with auto_draft enabled skip the interrupt entirely.
 Human approves/rejects via Command(resume={approved, user_edits}).
 Operator executes the decision (send or archive).
 
@@ -59,8 +60,8 @@ def build_chief_graph() -> StateGraph:
     )
 
     # Linear flow: Oracle → Scribe → Operator → END
+    # Scribe self-interrupts via interrupt() when human review is needed
     builder.add_edge("oracle", "scribe")
-    # Graph pauses after scribe (interrupt_after), then resumes into operator
     builder.add_edge("scribe", "operator")
     builder.add_edge("operator", END)
 
@@ -72,7 +73,8 @@ def get_chief_graph():
     """Get the compiled CHIEF graph with checkpointer.
 
     Uses PostgresSaver backed by Supabase Postgres for durable state.
-    Static interrupt_after=["scribe"] pauses after draft generation.
+    Scribe node self-interrupts via dynamic interrupt() when human review
+    is needed.  No graph-level interrupt_after — the node decides.
     """
     builder = build_chief_graph()
 
@@ -83,11 +85,9 @@ def get_chief_graph():
         checkpointer = MemorySaver()
     else:
         checkpointer = PostgresSaver.from_conn_string(db_url)
+        checkpointer.setup()  # Create checkpoint tables if they don't exist
 
-    graph = builder.compile(
-        checkpointer=checkpointer,
-        interrupt_after=["scribe"],  # Pause after draft generated, wait for human
-    )
+    graph = builder.compile(checkpointer=checkpointer)
 
-    log.info("CHIEF graph compiled with interrupt_after=['scribe']")
+    log.info("CHIEF graph compiled with dynamic interrupt (Scribe self-interrupts)")
     return graph

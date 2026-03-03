@@ -7,45 +7,58 @@ arrive in a user's inbox. Triggers incremental sync → LangGraph pipeline.
 import base64
 import json
 import logging
+import os
 
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import Depends, FastAPI, HTTPException, Request
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token
 
 from api.models import PubSubPushRequest
+from core.auth import get_current_user_id
+from core.cors import add_cors
 from core.supabase_client import get_supabase
 from services.gmail_sync import incremental_sync
 
 log = logging.getLogger("chief.webhooks")
 
+_PUBSUB_VERIFY = os.getenv("PUBSUB_VERIFY_TOKENS", "true").lower() == "true"
+
 app = FastAPI(title="CHIEF Webhooks")
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+add_cors(app)
 
 
 @app.post("/api/webhooks/gmail")
 async def gmail_webhook(request: Request):
     """Handle Gmail Pub/Sub push notification.
 
-    Google sends:
-    {
-      "message": {
-        "data": "<base64 encoded JSON>",
-        "messageId": "...",
-        "publishTime": "..."
-      },
-      "subscription": "projects/.../subscriptions/..."
-    }
+    Google sends an OIDC token in the Authorization header. We verify it
+    to ensure the request actually came from Google Cloud Pub/Sub.
 
-    Decoded data:
+    Decoded message data:
     {
       "emailAddress": "user@gmail.com",
       "historyId": "12345"
     }
     """
+    # Verify Google Pub/Sub OIDC token
+    if _PUBSUB_VERIFY:
+        auth_header = request.headers.get("Authorization", "")
+        if not auth_header.startswith("Bearer "):
+            log.warning("Webhook missing OIDC bearer token")
+            raise HTTPException(status_code=401, detail="Missing auth token")
+        token = auth_header[7:]
+        try:
+            claim = id_token.verify_oauth2_token(
+                token,
+                google_requests.Request(),
+                audience=os.getenv("PUBSUB_AUDIENCE", ""),
+            )
+            if claim.get("email_verified") and claim.get("email"):
+                log.debug("Pub/Sub token verified: %s", claim["email"])
+        except Exception as e:
+            log.warning("Pub/Sub OIDC verification failed: %s", e)
+            raise HTTPException(status_code=401, detail="Invalid Pub/Sub token")
+
     try:
         body = await request.json()
         push_req = PubSubPushRequest(**body)
@@ -101,7 +114,7 @@ async def gmail_webhook(request: Request):
 
 
 @app.post("/api/webhooks/gmail/test")
-async def gmail_webhook_test(user_id: str, email_id: str | None = None):
+async def gmail_webhook_test(user_id: str = Depends(get_current_user_id), email_id: str | None = None):
     """Manual trigger for testing the webhook pipeline."""
     log.info("Manual webhook test for user %s", user_id)
 

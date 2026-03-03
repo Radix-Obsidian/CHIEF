@@ -1,37 +1,38 @@
 """Email feed endpoints.
 
 Endpoints:
-  GET /api/email/feed     → Paginated feed sorted by importance
-  GET /api/email/pending  → Drafts awaiting human approval (interrupted graphs)
-  GET /api/email/{id}     → Single email detail
+  GET  /api/email/feed            → Paginated feed sorted by importance
+  GET  /api/email/pending         → Drafts awaiting human approval (interrupted graphs)
+  GET  /api/email/{id}            → Single email detail
+  GET  /api/email/{id}/stream     → SSE stream of pipeline progress for an email
 """
 
+import json
 import logging
 
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import Depends, FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
 
 from api.models import EmailSummary, EmailFeedResponse, PendingDraft
+from core.auth import get_current_user_id
+from core.cors import add_cors
 from core.supabase_client import get_supabase
 
 log = logging.getLogger("chief.api.email")
 
 app = FastAPI(title="CHIEF Email")
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+add_cors(app)
 
 
 @app.get("/api/email/feed")
 async def email_feed(
-    user_id: str,
+    user_id: str = Depends(get_current_user_id),
     page: int = 1,
     per_page: int = 20,
 ):
     """Paginated email feed sorted by importance (highest first)."""
+    page = max(1, min(page, 1000))
+    per_page = max(1, min(per_page, 100))
     supabase = get_supabase()
 
     offset = (page - 1) * per_page
@@ -74,7 +75,7 @@ async def email_feed(
 
 
 @app.get("/api/email/pending")
-async def get_pending_drafts(user_id: str):
+async def get_pending_drafts(user_id: str = Depends(get_current_user_id)):
     """Fetch all threads with paused graphs (drafts awaiting human swipe).
 
     Checks LangGraph checkpoint states for interrupted threads.
@@ -122,7 +123,7 @@ async def get_pending_drafts(user_id: str):
 
 
 @app.get("/api/email/{email_id}")
-async def get_email(email_id: str, user_id: str):
+async def get_email(email_id: str, user_id: str = Depends(get_current_user_id)):
     """Get a single email with full sanitized body."""
     supabase = get_supabase()
 
@@ -134,3 +135,78 @@ async def get_email(email_id: str, user_id: str):
         raise HTTPException(status_code=404, detail="Email not found")
 
     return result.data
+
+
+@app.get("/api/email/{email_id}/stream")
+async def stream_pipeline(email_id: str, user_id: str = Depends(get_current_user_id)):
+    """SSE stream of pipeline progress for a specific email.
+
+    Invokes the LangGraph pipeline and streams custom events from each
+    node's get_stream_writer() calls.  The stream ends when the pipeline
+    pauses (interrupt) or completes.
+
+    Frontend connects via EventSource and receives events like:
+      data: {"node":"gatekeeper","status":"sanitizing_pii"}
+      data: {"node":"scribe","status":"generating_draft"}
+      data: {"node":"scribe","status":"waiting_approval","confidence":0.82}
+    """
+    supabase = get_supabase()
+
+    email_row = supabase.table("emails").select("*").eq(
+        "id", email_id
+    ).eq("user_id", user_id).single().execute()
+
+    if not email_row.data:
+        raise HTTPException(status_code=404, detail="Email not found")
+
+    email_data = email_row.data
+
+    async def event_stream():
+        from agents.graph import get_chief_graph
+
+        graph = get_chief_graph()
+        thread_id = email_data.get("thread_id", email_id)
+        config = {"configurable": {"thread_id": thread_id}}
+
+        try:
+            async for chunk in graph.astream(
+                {
+                    "email_id": email_id,
+                    "user_id": user_id,
+                    "raw_email": {
+                        "from": email_data["from_address"],
+                        "to": email_data.get("to_addresses", []),
+                        "subject": email_data.get("subject", ""),
+                        "body": email_data.get("body_sanitized", ""),
+                        "thread_id": email_data.get("thread_id", ""),
+                        "received_at": email_data.get("received_at", ""),
+                    },
+                },
+                config=config,
+                stream_mode=["custom", "updates"],
+            ):
+                # custom events are tuples ("custom", payload)
+                # updates are tuples ("updates", {node_name: state_delta})
+                if isinstance(chunk, tuple) and len(chunk) == 2:
+                    mode, payload = chunk
+                    if mode == "custom":
+                        yield f"data: {json.dumps(payload)}\n\n"
+                    elif mode == "updates":
+                        # Emit a lightweight node-completed event
+                        for node_name in payload:
+                            yield f"data: {json.dumps({'node': node_name, 'status': 'node_complete'})}\n\n"
+
+            yield f"data: {json.dumps({'status': 'stream_end'})}\n\n"
+
+        except Exception as e:
+            log.error("SSE stream error for email %s: %s", email_id, e)
+            yield f"data: {json.dumps({'status': 'error', 'message': str(e)})}\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
