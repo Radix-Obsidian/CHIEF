@@ -1,0 +1,31 @@
+# LangGraph + LangChain
+langgraph>=0.3.34
+langgraph-checkpoint-postgres>=2.0.0
+langchain-core>=0.3.51
+langchain-anthropic>=0.3.12
+langchain-openai>=0.3.12
+
+# FastAPI
+fastapi>=0.115.7
+uvicorn[standard]>=0.34.0
+python-multipart>=0.0.19
+pydantic>=2.10.6
+
+# Google APIs (Gmail + Pub/Sub)
+google-auth>=2.38.0
+google-auth-oauthlib>=1.2.1
+google-api-python-client>=2.163.0
+google-cloud-pubsub>=2.29.0
+
+# Supabase
+supabase>=2.13.0
+
+# Pinecone
+pinecone-client>=5.4.2
+
+# LangSmith (tracing)
+langsmith>=0.2.14
+
+# Utilities
+python-dotenv>=1.0.1
+httpx>=0.28.1
