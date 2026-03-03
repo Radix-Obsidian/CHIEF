@@ -11,7 +11,10 @@ export async function GET(request: NextRequest) {
     if (key !== "pending") params.set(key, value);
   });
 
-  const res = await fetch(`${BACKEND_URL}${path}?${params.toString()}`);
+  const auth = request.headers.get("authorization");
+  const res = await fetch(`${BACKEND_URL}${path}?${params.toString()}`, {
+    headers: auth ? { Authorization: auth } : {},
+  });
   const data = await res.json();
   return NextResponse.json(data, { status: res.status });
 }

@@ -16,16 +16,16 @@ import logging
 import jwt
 from fastapi import HTTPException, Request
 
-from core.config import SUPABASE_JWT_SECRET
+from core.config import JWT_SECRET
 
 log = logging.getLogger("chief.auth")
 
 
 async def get_current_user_id(request: Request) -> str:
-    """FastAPI dependency — extract and validate user_id from Supabase JWT.
+    """FastAPI dependency — extract and validate user_id from JWT.
 
-    Expects: ``Authorization: Bearer <supabase-jwt>``
-    Returns the ``sub`` claim (Supabase auth.users UUID).
+    Expects: ``Authorization: Bearer <jwt>``
+    Returns the ``sub`` claim (user UUID).
     """
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
@@ -36,17 +36,12 @@ async def get_current_user_id(request: Request) -> str:
 
     token = auth_header[7:]  # Strip "Bearer "
 
-    if not SUPABASE_JWT_SECRET:
-        log.error("SUPABASE_JWT_SECRET not configured — cannot validate JWTs")
+    if not JWT_SECRET:
+        log.error("JWT_SECRET not configured — cannot validate JWTs")
         raise HTTPException(status_code=500, detail="Auth not configured")
 
     try:
-        payload = jwt.decode(
-            token,
-            SUPABASE_JWT_SECRET,
-            algorithms=["HS256"],
-            audience="authenticated",
-        )
+        payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expired")
     except jwt.InvalidTokenError as e:

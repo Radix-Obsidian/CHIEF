@@ -14,6 +14,8 @@ export async function GET(request: Request) {
 
   const callbackUrl = new URL("/callback", request.url);
   callbackUrl.searchParams.set("code", code);
+  const state = url.searchParams.get("state");
+  if (state) callbackUrl.searchParams.set("state", state);
   return NextResponse.redirect(callbackUrl);
 }
 

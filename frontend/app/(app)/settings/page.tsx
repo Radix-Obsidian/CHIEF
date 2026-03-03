@@ -2,23 +2,27 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Mic, Sliders } from "lucide-react";
+import { authedFetch } from "@/lib/api";
+import { VoiceCalibration } from "@/components/voice-calibration";
 
 export default function SettingsPage() {
   const [threshold, setThreshold] = useState(5);
   const [autoDraft, setAutoDraft] = useState(true);
-  const [calibrating, setCalibrating] = useState(false);
-  const [voiceProfile, setVoiceProfile] = useState<Record<string, any> | null>(null);
+  const [toneStrictness, setToneStrictness] = useState(70);
+  const [voiceProfile, setVoiceProfile] = useState<Record<string, any> | null>(
+    null
+  );
 
   useEffect(() => {
     const userId = localStorage.getItem("chief_user_id");
     if (!userId) return;
 
-    fetch(`/api/settings?user_id=${userId}`)
+    authedFetch(`/api/settings?user_id=${userId}`)
       .then((res) => res.json())
       .then((data) => {
         setThreshold(data.importance_threshold || 5);
         setAutoDraft(data.auto_draft ?? true);
+        setToneStrictness(data.tone_strictness ?? 70);
         setVoiceProfile(data.voice_profile || null);
       })
       .catch(console.error);
@@ -28,121 +32,99 @@ export default function SettingsPage() {
     const userId = localStorage.getItem("chief_user_id");
     if (!userId) return;
 
-    await fetch(`/api/settings`, {
+    await authedFetch(`/api/settings`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         user_id: userId,
         importance_threshold: threshold,
         auto_draft: autoDraft,
+        tone_strictness: toneStrictness,
       }),
     });
 
     toast.success("Settings saved");
   }
 
-  async function calibrateVoice() {
-    setCalibrating(true);
-    const userId = localStorage.getItem("chief_user_id");
-    if (!userId) return;
-
-    try {
-      const res = await fetch(`/api/settings/calibrate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: userId }),
-      });
-      const profile = await res.json();
-      setVoiceProfile(profile);
-      toast.success("Voice profile calibrated");
-    } catch {
-      toast.error("Calibration failed");
-    } finally {
-      setCalibrating(false);
-    }
-  }
+  const rangeProgress = ((threshold - 1) / 9) * 100;
 
   return (
-    <div className="px-4 pt-6">
-      <h1 className="mb-6 text-2xl font-bold">Settings</h1>
+    <div className="px-6 pt-8 pb-8">
+      <h1 className="mb-8 text-hig-title1 font-bold text-chief-text">Settings</h1>
 
-      <div className="space-y-6">
-        {/* Importance Threshold */}
-        <div className="rounded-xl border border-white/10 bg-chief-card p-4">
-          <div className="flex items-center gap-3 mb-3">
-            <Sliders className="h-5 w-5 text-chief-accent" />
-            <h2 className="font-medium">Importance Threshold</h2>
-          </div>
-          <p className="text-sm text-white/50 mb-4">
-            Only generate drafts for emails scoring at or above this level
-          </p>
-          <div className="flex items-center gap-4">
-            <input
-              type="range"
-              min={1}
-              max={10}
-              value={threshold}
-              onChange={(e) => setThreshold(Number(e.target.value))}
-              className="flex-1 accent-chief-accent"
-            />
-            <span className="w-10 text-center text-lg font-bold">{threshold}</span>
-          </div>
-          <div className="mt-2 flex justify-between text-xs text-white/30">
-            <span>All emails</span>
-            <span>VIPs only</span>
-          </div>
-        </div>
-
-        {/* Voice Profile */}
-        <div className="rounded-xl border border-white/10 bg-chief-card p-4">
-          <div className="flex items-center gap-3 mb-3">
-            <Mic className="h-5 w-5 text-chief-accent" />
-            <h2 className="font-medium">Voice Profile</h2>
-          </div>
-          <p className="text-sm text-white/50 mb-4">
-            Analyze your sent emails to match your writing style
+      <div className="space-y-10 max-w-2xl">
+        {/* ── General ── */}
+        <section className="space-y-4">
+          <p className="text-[11px] font-medium uppercase tracking-widest text-chief-text-muted">
+            General
           </p>
 
-          {voiceProfile && Object.keys(voiceProfile).length > 0 ? (
-            <div className="space-y-2 mb-4 rounded-lg bg-white/5 p-3">
-              <div className="flex justify-between text-sm">
-                <span className="text-white/50">Greeting</span>
-                <span>{voiceProfile.greeting_style}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-white/50">Closing</span>
-                <span>{voiceProfile.closing_style}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-white/50">Formality</span>
-                <span>{voiceProfile.formality_level}/5</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-white/50">Tone</span>
-                <span>{(voiceProfile.tone_descriptors || []).join(", ")}</span>
-              </div>
+          {/* Auto-draft toggle */}
+          <div className="flex items-center justify-between rounded-chief border border-chief-border bg-chief-surface p-4">
+            <div>
+              <p className="text-sm font-medium text-chief-text">
+                Auto-draft replies
+              </p>
+              <p className="mt-0.5 text-xs text-chief-text-muted">
+                Generate drafts for incoming emails automatically
+              </p>
             </div>
-          ) : (
-            <p className="mb-4 text-sm text-white/30 italic">
-              No voice profile yet. Calibrate to improve draft quality.
+            <button
+              type="button"
+              className="chief-toggle"
+              data-active={autoDraft}
+              onClick={() => setAutoDraft(!autoDraft)}
+              aria-label="Toggle auto-draft"
+            />
+          </div>
+
+          {/* Importance Threshold */}
+          <div className="rounded-chief border border-chief-border bg-chief-surface p-4">
+            <p className="text-sm font-medium text-chief-text">
+              Importance threshold
             </p>
-          )}
+            <p className="mt-0.5 text-xs text-chief-text-muted">
+              Only draft for emails at or above this score
+            </p>
+            <div className="mt-4 flex items-center gap-4">
+              <input
+                type="range"
+                min={1}
+                max={10}
+                value={threshold}
+                onChange={(e) => setThreshold(Number(e.target.value))}
+                className="flex-1"
+                style={
+                  {
+                    "--range-progress": `${rangeProgress}%`,
+                  } as React.CSSProperties
+                }
+              />
+              <span className="w-8 text-center text-lg font-semibold tabular-nums text-chief-text">
+                {threshold}
+              </span>
+            </div>
+            <div className="mt-1.5 flex justify-between text-[11px] text-chief-text-muted">
+              <span>All emails</span>
+              <span>VIPs only</span>
+            </div>
+          </div>
+        </section>
 
-          <button
-            onClick={calibrateVoice}
-            disabled={calibrating}
-            className="w-full rounded-lg bg-chief-accent py-2.5 text-sm font-medium text-white transition hover:brightness-110 disabled:opacity-50"
-          >
-            {calibrating ? "Analyzing sent emails..." : "Calibrate My Voice"}
-          </button>
-        </div>
+        {/* ── Voice ── */}
+        <VoiceCalibration
+          profile={voiceProfile}
+          toneStrictness={toneStrictness}
+          onToneStrictnessChange={setToneStrictness}
+          onProfileUpdate={setVoiceProfile}
+        />
 
-        {/* Save */}
+        {/* ── Save ── */}
         <button
           onClick={saveSettings}
-          className="w-full rounded-xl bg-white/10 py-3 text-sm font-medium text-white transition hover:bg-white/20"
+          className="w-full rounded-chief bg-chief-accent py-3 text-sm font-medium text-white transition hover:brightness-110"
         >
-          Save Settings
+          Save
         </button>
       </div>
     </div>

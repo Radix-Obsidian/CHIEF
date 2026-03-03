@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { forwardAuth } from "../../_helpers";
 
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
 
@@ -11,7 +12,8 @@ export async function GET(request: NextRequest) {
   }
 
   const res = await fetch(
-    `${BACKEND_URL}/api/email/pending?user_id=${userId}`
+    `${BACKEND_URL}/api/email/pending?user_id=${userId}`,
+    { headers: forwardAuth(request) }
   );
   const data = await res.json();
   return NextResponse.json(data, { status: res.status });

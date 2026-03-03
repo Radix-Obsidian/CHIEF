@@ -26,33 +26,32 @@ interface SwipeFeedProps {
 export function SwipeFeed({ drafts, onSwipe }: SwipeFeedProps) {
   function handleSwipe(threadId: string, approved: boolean) {
     onSwipe(threadId, approved);
-
     if (approved) {
-      toast.success("Draft approved — sending");
+      toast.success("Approved — sending");
     } else {
-      toast("Email archived", { description: "Draft rejected" });
+      toast("Archived");
     }
   }
 
   return (
-    <div className="relative mx-auto min-h-[500px] w-full max-w-md">
+    <div className="relative mx-auto w-full max-w-lg" style={{ minHeight: "280px" }}>
       <AnimatePresence mode="popLayout">
         {drafts.map((draft, index) => (
           <motion.div
             key={draft.thread_id}
-            initial={{ scale: 0.95, opacity: 0, y: 20 }}
+            initial={{ scale: 0.97, opacity: 0, y: 12 }}
             animate={{
-              scale: 1 - index * 0.03,
+              scale: 1 - index * 0.02,
               opacity: index > 2 ? 0 : 1,
-              y: index * 8,
+              y: index * 6,
               zIndex: drafts.length - index,
             }}
             exit={{
               opacity: 0,
-              scale: 0.9,
-              transition: { duration: 0.2 },
+              scale: 0.96,
+              transition: { duration: 0.15 },
             }}
-            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+            transition={{ type: "spring", stiffness: 500, damping: 40 }}
             style={{
               position: index === 0 ? "relative" : "absolute",
               top: 0,
@@ -66,10 +65,7 @@ export function SwipeFeed({ drafts, onSwipe }: SwipeFeedProps) {
               draftSubject={draft.draft_subject}
               draftBody={draft.draft_body}
               importanceScore={draft.importance_score}
-              confidence={draft.confidence}
               originalFrom={draft.original_email.from}
-              originalSubject={draft.original_email.subject}
-              originalPreview={draft.original_email.preview}
               onSwipe={handleSwipe}
             />
           </motion.div>

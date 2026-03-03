@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Send, X, RefreshCw } from "lucide-react";
+import { ArrowLeft, Send, X } from "lucide-react";
 import { toast } from "sonner";
 
 interface Draft {
@@ -49,7 +49,7 @@ export default function DraftDetailPage() {
         body: JSON.stringify({ approved: true, edits }),
       });
 
-      toast.success("Email sent");
+      toast.success("Sent");
       router.push("/inbox");
     } catch {
       toast.error("Failed to send");
@@ -67,58 +67,62 @@ export default function DraftDetailPage() {
       body: JSON.stringify({ approved: false }),
     });
 
-    toast("Draft rejected");
+    toast("Archived");
     router.push("/inbox");
   }
 
   if (loading || !draft) {
     return (
-      <div className="flex min-h-[80vh] items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white" />
+      <div className="flex min-h-[80vh] items-center justify-center px-6">
+        <div className="chief-pulse-bar w-32" />
       </div>
     );
   }
 
   return (
-    <div className="px-4 pt-6">
+    <div className="px-6 pt-6">
       {/* Header */}
       <div className="mb-6 flex items-center gap-3">
         <button
           onClick={() => router.back()}
-          className="rounded-lg bg-white/5 p-2 hover:bg-white/10"
+          className="rounded-chief border border-chief-border p-2 transition-colors hover:border-chief-text-muted/40"
         >
-          <ArrowLeft className="h-5 w-5" />
+          <ArrowLeft className="h-5 w-5 text-chief-text-secondary" strokeWidth={2} />
         </button>
-        <h1 className="flex-1 text-lg font-bold">{draft.subject}</h1>
+        <h1 className="flex-1 text-hig-body font-medium text-chief-text truncate">
+          {draft.subject}
+        </h1>
       </div>
 
       {/* Editable draft body */}
       <textarea
         value={editedBody}
         onChange={(e) => setEditedBody(e.target.value)}
-        className="min-h-[300px] w-full resize-none rounded-xl border border-white/10 bg-chief-card p-4 text-sm text-white/90 focus:border-chief-accent focus:outline-none"
+        className="min-h-[300px] w-full resize-none rounded-chief border border-chief-border bg-chief-surface p-4 text-hig-body text-chief-text leading-relaxed tracking-chief focus:border-chief-accent focus:outline-none"
       />
 
       {/* Actions */}
       <div className="mt-4 flex gap-3">
         <button
           onClick={handleReject}
-          className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 py-3 text-sm font-medium text-white/70 transition hover:bg-white/10"
+          className="flex flex-1 items-center justify-center gap-2 rounded-chief border border-chief-border py-3 text-hig-caption font-medium text-chief-text-secondary transition-colors hover:border-chief-text-muted/40"
         >
-          <X className="h-4 w-4" />
-          Reject
+          <X className="h-4 w-4" strokeWidth={2} />
+          Archive
         </button>
         <button
           onClick={handleApprove}
           disabled={sending}
-          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-chief-approve py-3 text-sm font-medium text-white transition hover:brightness-110 disabled:opacity-50"
+          className="flex flex-1 items-center justify-center gap-2 rounded-chief bg-chief-accent py-3 text-hig-caption font-medium text-white transition hover:brightness-110 disabled:opacity-50"
         >
           {sending ? (
-            <RefreshCw className="h-4 w-4 animate-spin" />
+            <div className="chief-pulse-bar w-16" />
           ) : (
-            <Send className="h-4 w-4" />
+            <>
+              <Send className="h-4 w-4" strokeWidth={2} />
+              Approve & Send
+            </>
           )}
-          {sending ? "Sending..." : "Approve & Send"}
         </button>
       </div>
     </div>

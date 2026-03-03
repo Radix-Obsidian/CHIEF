@@ -78,20 +78,22 @@ async def email_feed(
 async def get_pending_drafts(user_id: str = Depends(get_current_user_id)):
     """Fetch all threads with paused graphs (drafts awaiting human swipe).
 
-    Checks LangGraph checkpoint states for interrupted threads.
+    Checks LangGraph checkpoint states first, then falls back to direct
+    DB query for pending drafts (supports seeded/demo data).
     """
+    supabase = get_supabase()
+    pending: list[dict] = []
+
+    # ── Try LangGraph checkpoints first ──
     try:
         from agents.graph import get_chief_graph
 
         graph = get_chief_graph()
-        supabase = get_supabase()
 
-        # Get threads that have drafts
         threads = supabase.table("emails").select(
             "thread_id, id, from_address, subject, body_preview, importance_score"
         ).eq("user_id", user_id).eq("has_draft", True).execute()
 
-        pending: list[dict] = []
         for row in threads.data:
             thread_id = row.get("thread_id")
             if not thread_id:
@@ -115,11 +117,36 @@ async def get_pending_drafts(user_id: str = Depends(get_current_user_id)):
                     },
                 })
 
-        return pending
-
     except Exception as e:
-        log.error("Error fetching pending drafts: %s", e)
-        return []
+        log.warning("LangGraph unavailable, using DB fallback: %s", e)
+
+    # ── DB fallback: pending drafts without graph checkpoints ──
+    if not pending:
+        try:
+            fallback = supabase.table("drafts").select(
+                "thread_id, email_id, subject, body, confidence, "
+                "emails(from_address, subject, body_preview, importance_score)"
+            ).eq("user_id", user_id).eq("status", "pending").execute()
+
+            for row in fallback.data:
+                email = row.get("emails", {}) or {}
+                pending.append({
+                    "thread_id": row["thread_id"],
+                    "email_id": row["email_id"],
+                    "draft_subject": row["subject"],
+                    "draft_body": row["body"],
+                    "importance_score": email.get("importance_score", 5),
+                    "confidence": row.get("confidence"),
+                    "original_email": {
+                        "from": email.get("from_address", ""),
+                        "subject": email.get("subject", ""),
+                        "preview": email.get("body_preview", ""),
+                    },
+                })
+        except Exception as e:
+            log.error("DB fallback for pending drafts failed: %s", e)
+
+    return pending
 
 
 @app.get("/api/email/{email_id}")

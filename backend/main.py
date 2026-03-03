@@ -41,6 +41,7 @@ def _load_app(module_path: str) -> object:
 # Prefix → module path map (sub-app loaded lazily)
 # ---------------------------------------------------------------------------
 _PREFIX_MAP = [
+    ("/api/dev", "api.dev"),
     ("/api/auth", "api.auth"),
     ("/api/gmail", "api.gmail"),
     ("/api/webhooks", "api.webhooks"),

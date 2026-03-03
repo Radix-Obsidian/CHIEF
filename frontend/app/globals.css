@@ -1,47 +1,154 @@
+@import url('https://api.fontshare.com/v2/css?f[]=satoshi@500,700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --chief-bg: 0 0% 3%;
-    --chief-card: 0 0% 8%;
-    --chief-accent: 210 100% 60%;
-    --chief-approve: 142 76% 46%;
-    --chief-reject: 0 84% 60%;
-    --chief-muted: 0 0% 40%;
+    /* Light mode — #FFFFFF base */
+    --chief-bg: 255 255 255;
+    --chief-surface: 248 250 252;
+    --chief-border: 226 232 240;
+    --chief-text: 15 23 42;
+    --chief-text-secondary: 100 116 139;
+    --chief-text-muted: 148 163 184;
+    --chief-accent: 16 185 129;
+    --chief-reject: 239 68 68;
+    --chief-nav-bg: 255 255 255;
 
-    --background: 0 0% 3%;
-    --foreground: 0 0% 95%;
-    --card: 0 0% 8%;
-    --card-foreground: 0 0% 95%;
-    --popover: 0 0% 8%;
-    --popover-foreground: 0 0% 95%;
-    --primary: 210 100% 60%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 0 0% 14%;
-    --secondary-foreground: 0 0% 95%;
-    --muted: 0 0% 14%;
-    --muted-foreground: 0 0% 55%;
-    --accent: 0 0% 14%;
-    --accent-foreground: 0 0% 95%;
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 0 0% 16%;
-    --input: 0 0% 16%;
-    --ring: 210 100% 60%;
+    --background: 255 255 255;
+    --foreground: 15 23 42;
+    --card: 248 250 252;
+    --card-foreground: 15 23 42;
+    --border: 226 232 240;
+    --input: 226 232 240;
+    --ring: 16 185 129;
     --radius: 0.75rem;
   }
-}
 
-@layer base {
-  * {
-    border-color: hsl(var(--border));
+  .dark {
+    /* Dark mode — #0F172A base */
+    --chief-bg: 15 23 42;
+    --chief-surface: 30 41 55;        /* #1E2937 */
+    --chief-border: 51 65 85;         /* #334155 */
+    --chief-text: 248 250 252;
+    --chief-text-secondary: 148 163 184;
+    --chief-text-muted: 100 116 139;
+    --chief-accent: 16 185 129;
+    --chief-reject: 239 68 68;
+    --chief-nav-bg: 15 23 42;
+
+    --background: 15 23 42;
+    --foreground: 248 250 252;
+    --card: 30 41 55;
+    --card-foreground: 248 250 252;
+    --border: 51 65 85;
+    --input: 51 65 85;
+    --ring: 16 185 129;
   }
+
+  * {
+    border-color: rgb(var(--border));
+  }
+
+  /* Accessible focus ring — emerald accent */
+  :focus-visible {
+    outline: 2px solid rgb(var(--chief-accent));
+    outline-offset: 2px;
+  }
+
   body {
-    background-color: hsl(var(--background));
-    color: hsl(var(--foreground));
+    background-color: rgb(var(--background));
+    color: rgb(var(--foreground));
+    font-size: 17px;
+    font-weight: 500;
+    line-height: 1.4;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    letter-spacing: 0.05em;
+  }
+
+  /* Emerald-track range slider */
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 6px;
+    border-radius: 3px;
+    background: rgb(var(--chief-border));
+    outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: rgb(var(--chief-accent));
+    cursor: pointer;
+    border: 2px solid rgb(var(--chief-bg));
+    box-shadow: 0 0 0 2px rgb(var(--chief-accent) / 0.3);
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: rgb(var(--chief-accent));
+    cursor: pointer;
+    border: 2px solid rgb(var(--chief-bg));
+    box-shadow: 0 0 0 2px rgb(var(--chief-accent) / 0.3);
+  }
+  input[type="range"]::-webkit-slider-runnable-track {
+    background: linear-gradient(
+      to right,
+      rgb(var(--chief-accent)) 0%,
+      rgb(var(--chief-accent)) var(--range-progress, 50%),
+      rgb(var(--chief-border)) var(--range-progress, 50%),
+      rgb(var(--chief-border)) 100%
+    );
+    height: 6px;
+    border-radius: 3px;
+  }
+
+  /* Emerald pulse bar */
+  @keyframes pulse-bar {
+    0%, 100% { transform: scaleX(0.3); opacity: 0.4; }
+    50% { transform: scaleX(1); opacity: 1; }
+  }
+  .chief-pulse-bar {
+    height: 3px;
+    background: rgb(var(--chief-accent));
+    border-radius: 2px;
+    animation: pulse-bar 1.2s ease-in-out infinite;
+    transform-origin: left;
+  }
+
+  /* Toggle switch */
+  .chief-toggle {
+    position: relative;
+    width: 44px;
+    height: 24px;
+    border-radius: 12px;
+    background: rgb(var(--chief-border));
+    transition: background 0.2s;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .chief-toggle[data-active="true"] {
+    background: rgb(var(--chief-accent));
+  }
+  .chief-toggle::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: white;
+    transition: transform 0.2s;
+  }
+  .chief-toggle[data-active="true"]::after {
+    transform: translateX(20px);
   }
 }

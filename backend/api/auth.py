@@ -10,6 +10,7 @@ import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 
+import jwt as pyjwt
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import RedirectResponse
 from google_auth_oauthlib.flow import Flow
@@ -21,6 +22,7 @@ from core.config import (
     GOOGLE_CLIENT_ID,
     GOOGLE_CLIENT_SECRET,
     GOOGLE_REDIRECT_URI,
+    JWT_SECRET,
 )
 from core.supabase_client import get_supabase
 from services.voice_profiler import build_profile
@@ -29,6 +31,10 @@ log = logging.getLogger("chief.auth")
 
 app = FastAPI(title="CHIEF Auth")
 add_cors(app)
+
+# In-memory store for PKCE code verifiers keyed by OAuth state.
+# Each entry is consumed on callback, so this stays small.
+_pkce_store: dict[str, str] = {}
 
 SCOPES = [
     "https://www.googleapis.com/auth/gmail.modify",
@@ -59,11 +65,14 @@ def _create_flow() -> Flow:
 async def google_login():
     """Redirect user to Google OAuth consent screen."""
     flow = _create_flow()
-    auth_url, _ = flow.authorization_url(
+    auth_url, state = flow.authorization_url(
         access_type="offline",
         include_granted_scopes="true",
         prompt="consent",
     )
+    # Persist PKCE code_verifier so the callback can use it
+    if flow.code_verifier:
+        _pkce_store[state] = flow.code_verifier
     return RedirectResponse(url=auth_url)
 
 
@@ -71,6 +80,10 @@ async def google_login():
 async def google_callback(req: OAuthCallbackRequest):
     """Exchange authorization code for tokens, create/update user."""
     flow = _create_flow()
+
+    # Restore PKCE code_verifier from the login step
+    if req.state and req.state in _pkce_store:
+        flow.code_verifier = _pkce_store.pop(req.state)
 
     try:
         flow.fetch_token(code=req.code)
@@ -120,10 +133,18 @@ async def google_callback(req: OAuthCallbackRequest):
 
     log.info("OAuth complete for user %s (%s)", user_id, email)
 
+    # Mint an app JWT for the frontend to use on subsequent API calls
+    token_expiry = datetime.now(timezone.utc) + timedelta(days=7)
+    app_token = pyjwt.encode(
+        {"sub": user_id, "email": email, "exp": token_expiry},
+        JWT_SECRET,
+        algorithm="HS256",
+    )
+
     return TokenResponse(
-        access_token=credentials.token,
+        access_token=app_token,
         user_id=user_id,
-        expires_at=credentials.expiry or datetime.now(timezone.utc) + timedelta(hours=1),
+        expires_at=token_expiry,
     )
 
 

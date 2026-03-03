@@ -3,18 +3,33 @@ import { Inter } from "next/font/google";
 import { Toaster } from "sonner";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-inter",
+});
 
 export const metadata: Metadata = {
-  title: "CHIEF — Your Executive Proxy",
+  title: "CHIEF",
   description: "Zero inbox. Full context. Acts like you.",
+  manifest: "/manifest.json",
+  icons: {
+    icon: "/icon.svg",
+    apple: "/apple-touch-icon.png",
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "CHIEF",
+  },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
-  themeColor: "#080808",
+  viewportFit: "cover",
+  themeColor: "#0F172A",
 };
 
 export default function RootLayout({
@@ -24,16 +39,26 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="dark">
-      <body className={`${inter.className} min-h-screen bg-chief-bg text-white antialiased`}>
+      <body
+        className={`${inter.variable} font-satoshi min-h-screen bg-chief-bg text-chief-text tracking-chief antialiased`}
+      >
         {children}
         <Toaster
           position="top-center"
           toastOptions={{
             style: {
-              background: "hsl(0 0% 12%)",
-              color: "white",
-              border: "1px solid hsl(0 0% 20%)",
+              background: "rgb(var(--chief-surface))",
+              color: "rgb(var(--chief-text))",
+              border: "1px solid rgb(var(--chief-border))",
+              borderRadius: "12px",
+              fontSize: "13px",
+              letterSpacing: "0.05em",
             },
+          }}
+        />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('/sw.js')})}`,
           }}
         />
       </body>
